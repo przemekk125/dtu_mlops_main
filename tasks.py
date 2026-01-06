@@ -8,6 +8,17 @@ WINDOWS = os.name == "nt"
 
 
 @task
+def python(ctx):
+    """ """
+    ctx.run("which python" if os.name != "nt" else "where python")
+
+@task
+def git(ctx, message):
+    ctx.run("git add .")
+    ctx.run(f"git commit -m '{message}'")
+    ctx.run("git push")
+
+@task
 def install(ctx) -> None:
     """Create the environment for course."""
     ctx.run("uv sync", echo=True, pty=not WINDOWS)

@@ -149,3 +149,6 @@ arange = "arange"
 [tool.typos.default.extend-words]
 Ue = "Ue"
 Hashi = "Hashi"
+
+[project.scripts]
+greetings = "s2_organisation_and_version_control/exercise_files/iris.classifier:app"
