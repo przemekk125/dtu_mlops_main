@@ -1,4 +1,8 @@
 from loguru import logger
+import sys
+
+logger.remove()
+logger.add("my_log.log", level="DEBUG", rotation="100 MB")
 
 logger.debug("Used for debugging your code.")
 logger.info("Informative messages from your code.")

@@ -8,8 +8,11 @@ import torch.nn as nn
 import torchvision.transforms as transforms
 from torch.optim import Adam
 from torch.utils.data import DataLoader
+from torch.utils.data import TensorDataset
 from torchvision.datasets import MNIST
 from torchvision.utils import save_image
+from torch.profiler import profile, ProfilerActivity
+from torch.profiler import profile, tensorboard_trace_handler
 
 # Model Hyperparameters
 dataset_path = "datasets"
@@ -90,71 +93,85 @@ class Model(nn.Module):
 
         return x_hat, mean, log_var
 
+with profile(activities=[ProfilerActivity.CPU], record_shapes=True, on_trace_ready=tensorboard_trace_handler("./log/vae_mnist")) as prof:
+    # Data loading
+    mnist_transform = transforms.Compose([transforms.ToTensor()])
 
-encoder = Encoder(input_dim=x_dim, hidden_dim=hidden_dim, latent_dim=latent_dim)
-decoder = Decoder(latent_dim=latent_dim, hidden_dim=hidden_dim, output_dim=x_dim)
+    train_dataset = MNIST(dataset_path, transform=mnist_transform, train=True, download=True)
+    train_dataset = TensorDataset(train_dataset.data.float()/255., train_dataset.targets)
+    test_dataset = MNIST(dataset_path, transform=mnist_transform, train=False, download=True)
+    test_dataset = TensorDataset(test_dataset.data.float()/255., test_dataset.targets)
 
-model = Model(encoder=encoder, decoder=decoder).to(DEVICE)
+    train_loader = DataLoader(dataset=train_dataset, batch_size=batch_size, shuffle=True)
+    test_loader = DataLoader(dataset=test_dataset, batch_size=batch_size, shuffle=False)
 
+    encoder = Encoder(input_dim=x_dim, hidden_dim=hidden_dim, latent_dim=latent_dim)
+    decoder = Decoder(latent_dim=latent_dim, hidden_dim=hidden_dim, output_dim=x_dim)
 
-BCE_loss = nn.BCELoss()
-
-
-def loss_function(x, x_hat, mean, log_var):
-    """Reconstruction + KL divergence losses summed over all elements and batch."""
-    reproduction_loss = nn.functional.binary_cross_entropy(x_hat, x, reduction="sum")
-    kld = -0.5 * torch.sum(1 + log_var - mean.pow(2) - log_var.exp())
-    return reproduction_loss + kld
-
-
-optimizer = Adam(model.parameters(), lr=lr)
+    model = Model(encoder=encoder, decoder=decoder).to(DEVICE)
 
 
-print("Start training VAE...")
-model.train()
-for epoch in range(epochs):
-    overall_loss = 0
-    for batch_idx, (x, _) in enumerate(train_loader):
-        if batch_idx % 100 == 0:
-            print(batch_idx)
-        x = x.view(batch_size, x_dim)
-        x = x.to(DEVICE)
+    BCE_loss = nn.BCELoss()
 
-        optimizer.zero_grad()
 
-        x_hat, mean, log_var = model(x)
-        loss = loss_function(x, x_hat, mean, log_var)
+    def loss_function(x, x_hat, mean, log_var):
+        """Reconstruction + KL divergence losses summed over all elements and batch."""
+        reproduction_loss = nn.functional.binary_cross_entropy(x_hat, x, reduction="sum")
+        kld = -0.5 * torch.sum(1 + log_var - mean.pow(2) - log_var.exp())
+        return reproduction_loss + kld
 
-        overall_loss += loss.item()
 
-        loss.backward()
-        optimizer.step()
-    print(
-        "\tEpoch",
-        epoch + 1,
-        "complete!",
-        "\tAverage Loss: ",
-        overall_loss / (batch_idx * batch_size),
-    )
-print("Finish!!")
+    optimizer = Adam(model.parameters(), lr=lr)
 
-# Generate reconstructions
-model.eval()
-with torch.no_grad():
-    for batch_idx, (x, _) in enumerate(test_loader):
-        if batch_idx % 100 == 0:
-            print(batch_idx)
-        x = x.view(batch_size, x_dim)
-        x = x.to(DEVICE)
-        x_hat, _, _ = model(x)
-        break
 
-save_image(x.view(batch_size, 1, 28, 28), "orig_data.png")
-save_image(x_hat.view(batch_size, 1, 28, 28), "reconstructions.png")
+    print("Start training VAE...")
+    model.train()
+    for epoch in range(epochs):
+        overall_loss = 0
+        for batch_idx, (x, _) in enumerate(train_loader):
+            if batch_idx % 100 == 0:
+                print(batch_idx)
+            x = x.view(batch_size, x_dim)
+            x = x.to(DEVICE)
 
-# Generate samples
-with torch.no_grad():
-    noise = torch.randn(batch_size, latent_dim).to(DEVICE)
-    generated_images = decoder(noise)
+            optimizer.zero_grad()
 
-save_image(generated_images.view(batch_size, 1, 28, 28), "generated_sample.png")
+            x_hat, mean, log_var = model(x)
+            loss = loss_function(x, x_hat, mean, log_var)
+
+            overall_loss += loss.item()
+
+            loss.backward()
+            optimizer.step()
+        print(
+            "\tEpoch",
+            epoch + 1,
+            "complete!",
+            "\tAverage Loss: ",
+            overall_loss / (batch_idx * batch_size),
+        )
+    print("Finish!!")
+
+    # Generate reconstructions
+    print("Evaluation")
+    model.eval()
+    with torch.no_grad():
+        for batch_idx, (x, _) in enumerate(test_loader):
+            if batch_idx % 100 == 0:
+                print(batch_idx)
+            x = x.view(batch_size, x_dim)
+            x = x.to(DEVICE)
+            x_hat, _, _ = model(x)
+            break
+
+    save_image(x.view(batch_size, 1, 28, 28), "orig_data.png")
+    save_image(x_hat.view(batch_size, 1, 28, 28), "reconstructions.png")
+    print("Evaluated")
+    # Generate samples
+    with torch.no_grad():
+        noise = torch.randn(batch_size, latent_dim).to(DEVICE)
+        generated_images = decoder(noise)
+
+    save_image(generated_images.view(batch_size, 1, 28, 28), "generated_sample.png")
+    print("Generated")
+print("Done, finish")
