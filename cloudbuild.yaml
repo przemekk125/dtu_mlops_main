@@ -7,7 +7,7 @@ steps:
     '-t',
     'europe-west1-docker.pkg.dev/dtumlops-484220/artifacts-exercises/my-image',
     '-f',
-    'Dockerfile'
+    's6_the_cloud/exercise_files/Dockerfile'
   ]
 - name: 'gcr.io/cloud-builders/docker'
   id: 'Push container image'
