@@ -7,7 +7,7 @@ if __name__ == "__main__":
     # flatten the images
     n_samples = len(digits.images)
     data = digits.images.reshape((n_samples, -1))
-
+    # this line is for the sake of commit
     # Create a classifier: a support vector classifier
     clf = svm.SVC(gamma=0.001)
 
