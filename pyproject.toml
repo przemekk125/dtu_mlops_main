@@ -25,6 +25,7 @@ dependencies = [
   "mypy>=1.18.2",
   "pre-commit>=4.1",
   "pymdown-extensions>=10.14.3",
+  "python-multipart>=0.0.21",
   "ruff>=0.14.5",
 ]
 
